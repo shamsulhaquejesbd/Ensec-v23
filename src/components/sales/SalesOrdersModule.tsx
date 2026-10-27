@@ -309,7 +309,12 @@ export const SalesOrdersModule: React.FC = () => {
       name: quickItems[0]?.warehouseName || 'Main Warehouse',
     };
 
-    const newOrderPayload: Omit<SalesOrder, 'id' | 'orderNumber' | 'status'> = {
+    const chosenOrderNumber = orderMemoNo.trim()
+      ? (orderMemoNo.startsWith('SO-') ? orderMemoNo.trim() : `SO-${orderMemoNo.trim()}`)
+      : `SO-DHK-2026-${Math.floor(100 + Math.random() * 900)}`;
+
+    const newOrderPayload: any = {
+      orderNumber: chosenOrderNumber,
       date: orderDate,
       channel: selectedBuyer?.channel || 'Retail Store',
       distributorId: undefined,

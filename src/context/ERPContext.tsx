@@ -321,6 +321,7 @@ interface ERPContextType {
   refreshOffers?: () => Promise<void>;
   salesOrders: SalesOrder[];
   clearSalesOrders: () => void;
+  refreshSalesOrders?: () => Promise<void>;
   createSalesOrder: (order: Omit<SalesOrder, 'id' | 'orderNumber' | 'status'>) => string;
   approveSalesOrder: (orderId: string) => void;
   dispatchAndInvoiceSalesOrder: (orderId: string) => void;
@@ -687,6 +688,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.removeItem('ensec_sales_orders');
         sessionStorage.removeItem('ensec_sales_orders');
       } catch (e) {}
+    }
+    const sb = getSupabase();
+    if (sb) {
+      sb.from('sales_orders').delete().gte('id', 0).then();
     }
     addAuditLog('SALES_ORDERS_CLEARED', 'Sales Orders', 'Cleared sales orders and session memory.');
   };
@@ -1626,6 +1631,58 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const refreshSalesOrders = async () => {
+    const sb = getSupabase();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from('sales_orders')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (!error && Array.isArray(data)) {
+          const mapped: SalesOrder[] = data.map((row: any) => ({
+            id: String(row.id),
+            orderNumber: row.order_number,
+            date: row.order_date ? String(row.order_date).slice(0, 10) : new Date().toISOString().slice(0, 10),
+            channel: row.channel || 'Direct Sales',
+            distributorId: row.distributor_id ? String(row.distributor_id) : undefined,
+            distributorName: row.distributor_name || undefined,
+            customerId: row.customer_id ? String(row.customer_id) : 'cust-direct',
+            customerName: row.customer_name || 'Direct Customer',
+            salespersonId: row.salesperson_id ? String(row.salesperson_id) : 'u-1',
+            salespersonName: row.salesperson_name || 'Direct Sales',
+            warehouseId: row.warehouse_id ? String(row.warehouse_id) : 'wh-1',
+            warehouseName: row.warehouse_name || 'Main Warehouse',
+            status: row.status || 'Submitted',
+            subTotalBDT: Number(row.gross_amount_bdt) || 0,
+            discountBDT: Number(row.discount_amount_bdt) || 0,
+            taxVatBDT: Number(row.tax_vat_bdt) || 0,
+            netAmountBDT: Number(row.net_amount_bdt) || 0,
+            paidAmountBDT: Number(row.paid_amount_bdt) || 0,
+            dueAmountBDT: Number(row.due_amount_bdt) || 0,
+            paymentStatus: (Number(row.due_amount_bdt) || 0) <= 0 ? 'Paid' : (Number(row.paid_amount_bdt) || 0) > 0 ? 'Partially Paid' : 'Unpaid',
+            paymentMethod: row.payment_method || 'Credit (Due)',
+            appliedOfferCode: row.applied_offer_code || undefined,
+            notes: row.notes || undefined,
+            items: Array.isArray(row.items_json) ? row.items_json : [],
+          }));
+
+          setSalesOrders(mapped);
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem('ensec_sales_orders', JSON.stringify(mapped));
+            } catch (e) {}
+          }
+        } else if (error) {
+          console.warn('Supabase refreshSalesOrders notice:', error.message);
+        }
+      } catch (err) {
+        console.warn('Supabase refreshSalesOrders error:', err);
+      }
+    }
+  };
+
   const refreshWarehouses = async () => {
     const sb = getSupabase();
     if (sb) {
@@ -1771,6 +1828,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       refreshUOMs(),
       refreshFieldForce(),
       refreshOffers(),
+      refreshSalesOrders(),
     ]);
   };
 
@@ -1799,6 +1857,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let whChannel: any = null;
     let prodChannel: any = null;
     let catChannel: any = null;
+    let soChannel: any = null;
 
     if (sb && typeof sb.channel === 'function') {
       try {
@@ -1989,6 +2048,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           )
           .subscribe();
+
+        soChannel = sb
+          .channel('realtime:sales_orders')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'sales_orders' },
+            () => {
+              refreshSalesOrders();
+            }
+          )
+          .subscribe();
       } catch (err) {
         console.warn('Supabase Realtime subscription notice:', err);
       }
@@ -2015,6 +2085,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (catChannel && sb && typeof sb.removeChannel === 'function') {
           sb.removeChannel(catChannel);
+        }
+        if (soChannel && sb && typeof sb.removeChannel === 'function') {
+          sb.removeChannel(soChannel);
         }
       };
     }
@@ -5553,7 +5626,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const createSalesOrder = (order: Omit<SalesOrder, 'id' | 'orderNumber' | 'status'>): string => {
     const id = `so-${Date.now().toString().slice(-6)}`;
-    const orderNumber = `SO-DHK-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const orderNumber = (order as any).orderNumber || `SO-DHK-2026-${Math.floor(100 + Math.random() * 900)}`;
     const newOrder: SalesOrder = {
       ...order,
       id,
@@ -5562,14 +5635,92 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setSalesOrders((prev) => [newOrder, ...prev]);
     addAuditLog('SALES_ORDER_PLACED', 'Sales & Distribution', `Sales Order ${orderNumber} created for ${newOrder.customerName}. Net: BDT ${newOrder.netAmountBDT.toLocaleString()}`);
+
+    // Persist to Supabase database
+    const sb = getSupabase();
+    if (sb) {
+      // Find numeric IDs if available
+      let custIdNum: number | null = null;
+      if (order.customerId && /^\d+$/.test(String(order.customerId))) {
+        custIdNum = Number(order.customerId);
+      } else {
+        const matchedCust = customers.find((c) => c.id === order.customerId || c.name === order.customerName);
+        if (matchedCust && /^\d+$/.test(String(matchedCust.id))) {
+          custIdNum = Number(matchedCust.id);
+        }
+      }
+
+      let whIdNum: number | null = null;
+      if (order.warehouseId && /^\d+$/.test(String(order.warehouseId))) {
+        whIdNum = Number(order.warehouseId);
+      } else {
+        const matchedWh = warehouses.find((w) => w.id === order.warehouseId || w.name === order.warehouseName);
+        if (matchedWh && /^\d+$/.test(String(matchedWh.id))) {
+          whIdNum = Number(matchedWh.id);
+        }
+      }
+
+      const payload = {
+        order_number: orderNumber,
+        customer_id: custIdNum,
+        customer_name: order.customerName || 'Direct Customer',
+        salesperson_id: order.salespersonId ? String(order.salespersonId) : 'u-1',
+        salesperson_name: order.salespersonName || 'Direct Sales',
+        warehouse_id: whIdNum,
+        warehouse_name: order.warehouseName || 'Main Warehouse',
+        order_date: order.date || new Date().toISOString().slice(0, 10),
+        gross_amount_bdt: Number(order.subTotalBDT) || 0,
+        discount_amount_bdt: Number(order.discountBDT ?? (order as any).discountAmount ?? 0) || 0,
+        tax_vat_bdt: Number(order.taxVatBDT) || 0,
+        net_amount_bdt: Number(order.netAmountBDT) || 0,
+        paid_amount_bdt: Number(order.paidAmountBDT) || 0,
+        due_amount_bdt: Number(order.dueAmountBDT ?? (order.netAmountBDT - (order.paidAmountBDT || 0))) || 0,
+        status: 'Submitted',
+        items_json: Array.isArray(order.items) ? order.items : [],
+        applied_offer_code: order.appliedOfferCode || null,
+        notes: order.notes || null,
+      };
+
+      sb.from('sales_orders')
+        .insert(payload)
+        .select()
+        .then(
+          ({ data, error }: any) => {
+            if (error) {
+              console.error('Failed to save sales order to Supabase:', error);
+            } else if (data && data[0]) {
+              const confirmedId = String(data[0].id);
+              setSalesOrders((prev) =>
+                prev.map((so) => (so.id === id || so.orderNumber === orderNumber ? { ...so, id: confirmedId } : so))
+              );
+            }
+          },
+          (err: any) => {
+            console.error('Error inserting sales order into Supabase:', err);
+          }
+        );
+    }
+
     return id;
   };
 
   const approveSalesOrder = (orderId: string) => {
+    const targetSo = salesOrders.find((so) => so.id === orderId || so.orderNumber === orderId);
     setSalesOrders((prev) =>
-      prev.map((so) => (so.id === orderId ? { ...so, status: 'Approved' } : so))
+      prev.map((so) => (so.id === orderId || so.orderNumber === orderId ? { ...so, status: 'Approved' } : so))
     );
     addAuditLog('ORDER_APPROVED', 'Sales Orders', `Order ${orderId} approved by management.`);
+
+    const sb = getSupabase();
+    if (sb) {
+      const isNumeric = /^\d+$/.test(orderId);
+      const query = isNumeric
+        ? sb.from('sales_orders').update({ status: 'Approved' }).eq('id', Number(orderId))
+        : sb.from('sales_orders').update({ status: 'Approved' }).eq('order_number', targetSo?.orderNumber || orderId);
+      query.then(({ error }) => {
+        if (error) console.error('Failed to update sales order status in Supabase:', error);
+      });
+    }
   };
 
   const dispatchAndInvoiceSalesOrder = (orderId: string) => {
@@ -5638,6 +5789,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             'Sales Orders & Invoicing',
             `Invoice posted for ${so.orderNumber}. Inventory decreased by ${totalQty} units. Receivables updated.`
           );
+
+          const sb = getSupabase();
+          if (sb) {
+            const isNumeric = /^\d+$/.test(orderId);
+            const query = isNumeric
+              ? sb.from('sales_orders').update({ status: 'Invoiced' }).eq('id', Number(orderId))
+              : sb.from('sales_orders').update({ status: 'Invoiced' }).eq('order_number', so.orderNumber || orderId);
+            query.then(({ error }) => {
+              if (error) console.error('Failed to sync invoice status to Supabase:', error);
+            });
+          }
+
           return { ...so, status: 'Invoiced' };
         }
         return so;
@@ -5651,11 +5814,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     accountType: CashBookEntry['accountType'],
     reference: string
   ) => {
+    let updatedPaid = 0;
+    let updatedDue = 0;
+    let targetOrderNumber = '';
+
     setSalesOrders((prev) =>
       prev.map((so) => {
         if (so.id === orderId) {
-          const updatedPaid = so.paidAmountBDT + paidAmount;
-          const updatedDue = Math.max(0, so.netAmountBDT - updatedPaid);
+          updatedPaid = so.paidAmountBDT + paidAmount;
+          updatedDue = Math.max(0, so.netAmountBDT - updatedPaid);
+          targetOrderNumber = so.orderNumber;
 
           // Update distributor / customer outstanding
           if (so.channel === 'Distributor Sales' && so.distributorId) {
@@ -5686,6 +5854,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCashBook((cb) => [...cb, cashEntry]);
 
           addAuditLog('PAYMENT_COLLECTED', 'Finance & Cash Book', `Collected BDT ${paidAmount.toLocaleString()} against order ${so.orderNumber} via ${accountType}`);
+
+          const sb = getSupabase();
+          if (sb) {
+            const isNumeric = /^\d+$/.test(orderId);
+            const query = isNumeric
+              ? sb.from('sales_orders').update({ paid_amount_bdt: updatedPaid, due_amount_bdt: updatedDue }).eq('id', Number(orderId))
+              : sb.from('sales_orders').update({ paid_amount_bdt: updatedPaid, due_amount_bdt: updatedDue }).eq('order_number', targetOrderNumber || orderId);
+            query.then(({ error }) => {
+              if (error) console.error('Failed to sync payment to Supabase:', error);
+            });
+          }
+
           return { ...so, paidAmountBDT: updatedPaid, dueAmountBDT: updatedDue };
         }
         return so;
@@ -7098,6 +7278,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleOfferStatus,
         salesOrders,
         clearSalesOrders,
+        refreshSalesOrders,
         createSalesOrder,
         approveSalesOrder,
         dispatchAndInvoiceSalesOrder,
