@@ -481,13 +481,9 @@ export const SalesOrdersModule: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">
               Sales Orders, Dispatch & Official Invoicing
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
-              National Distribution Flow
-            </span>
+            
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Order placement ➔ Management Approval ➔ Warehouse Dispatch & Stock Deduction ➔ Invoice Posting & Receivables Ledger.
-          </p>
+          
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
