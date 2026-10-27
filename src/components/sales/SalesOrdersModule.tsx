@@ -77,7 +77,7 @@ export const SalesOrdersModule: React.FC = () => {
 
   // New Sales Order Form (Modal)
   const [newCustId, setNewCustId] = useState(customers[0]?.id || '');
-  const [newWhId, setNewWhId] = useState(warehouses[1]?.id || warehouses[0]?.id || '');
+  const [newWhId, setNewWhId] = useState(warehouses[0]?.id || '');
   const [newProdId, setNewProdId] = useState(products[0]?.id || '');
   const [newQty, setNewQty] = useState(10);
   const [newPaymentMethod, setNewPaymentMethod] = useState<SalesOrder['paymentMethod']>('Credit');
@@ -162,17 +162,22 @@ export const SalesOrdersModule: React.FC = () => {
   }, [customers, distributors]);
 
 
-  // All available warehouses for selection
+  // Purge any legacy session/local storage for warehouses or temporary dummy items
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('ensec_warehouses');
+        sessionStorage.removeItem('ensec_dummy_warehouses');
+        sessionStorage.removeItem('ensec_quick_items');
+      } catch (e) {}
+    }
+  }, []);
+
+  // All available warehouses for selection - strictly uses real warehouses (no dummy hubs)
   const allAvailableWarehouses = useMemo(() => {
-    const defaultHubs = [
-      { id: 'wh-moulovi', name: 'MouloviBazar' },
-      { id: 'wh-armanitola', name: 'Armanitola' },
-      { id: 'wh-begumganj', name: 'Begumganj 2' },
-    ];
     const fromState = warehouses.map((w) => ({ id: w.id, name: w.name }));
-    const combined = [...defaultHubs, ...fromState];
-    const seen = new Set();
-    return combined.filter((w) => {
+    const seen = new Set<string>();
+    return fromState.filter((w) => {
       if (seen.has(w.name)) return false;
       seen.add(w.name);
       return true;
@@ -255,8 +260,8 @@ export const SalesOrdersModule: React.FC = () => {
 
     const newItem: QuickOrderItem = {
       id: `qi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      warehouseId: allAvailableWarehouses[0]?.id || 'wh-1',
-      warehouseName: allAvailableWarehouses[0]?.name || 'Dhaka Central Warehouse',
+      warehouseId: allAvailableWarehouses[0]?.id || warehouses[0]?.id || 'wh-1',
+      warehouseName: allAvailableWarehouses[0]?.name || warehouses[0]?.name || 'Main Warehouse',
       productId: prod.id,
       productName: prod.name,
       batchNumber: prod.code ? `BT-${prod.code}` : 'BT-202610-001',
@@ -300,8 +305,8 @@ export const SalesOrdersModule: React.FC = () => {
     });
 
     const primaryWh = warehouses.find((w) => w.id === quickItems[0]?.warehouseId) || warehouses[0] || {
-      id: 'wh-dhaka-1',
-      name: quickItems[0]?.warehouseName || 'Central Warehouse',
+      id: 'wh-1',
+      name: quickItems[0]?.warehouseName || 'Main Warehouse',
     };
 
     const newOrderPayload: Omit<SalesOrder, 'id' | 'orderNumber' | 'status'> = {
