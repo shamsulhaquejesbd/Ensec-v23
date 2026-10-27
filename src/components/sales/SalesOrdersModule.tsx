@@ -28,6 +28,7 @@ import {
   UserPlus,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext.tsx';
 import { SalesOrder, SalesOrderItem, CashBookEntry, getCustomerProductPricing } from '../../types/erp.ts';
@@ -51,7 +52,11 @@ interface QuickOrderItem {
 
 const INITIAL_QUICK_ITEMS: QuickOrderItem[] = [];
 
-export const SalesOrdersModule: React.FC = () => {
+interface SalesOrdersModuleProps {
+  onNavigateToRegistry?: () => void;
+}
+
+export const SalesOrdersModule: React.FC<SalesOrdersModuleProps> = ({ onNavigateToRegistry }) => {
   const {
     salesOrders,
     clearSalesOrders,
@@ -81,21 +86,6 @@ export const SalesOrdersModule: React.FC = () => {
   const [newProdId, setNewProdId] = useState(products[0]?.id || '');
   const [newQty, setNewQty] = useState(10);
   const [newPaymentMethod, setNewPaymentMethod] = useState<SalesOrder['paymentMethod']>('Credit');
-
-  // Sales Orders Master Registry Pagination (15 rows at a time)
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
-  const totalPages = Math.ceil(salesOrders.length / pageSize) || 1;
-  const paginatedSalesOrders = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return salesOrders.slice(start, start + pageSize);
-  }, [salesOrders, currentPage, pageSize]);
-
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages, currentPage]);
 
   // Direct In-page Quick Order Capture State
   const [orderMemoNo, setOrderMemoNo] = useState(() => `SO-${Date.now().toString().slice(-4)}`);
@@ -363,7 +353,6 @@ export const SalesOrdersModule: React.FC = () => {
     setDiscountType('BDT');
     setOrderNote('');
     setPaymentMode('Credit (Due)');
-    setCurrentPage(1);
 
     // Close confirmation modal
     setShowConfirmSaleModal(false);
@@ -486,7 +475,17 @@ export const SalesOrdersModule: React.FC = () => {
           
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {onNavigateToRegistry && (
+            <button
+              type="button"
+              onClick={onNavigateToRegistry}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors shadow-xs cursor-pointer"
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span>Orders Registry ({salesOrders.length})</span>
+            </button>
+          )}
           <button
             onClick={handleCleanSampleData}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors shadow-xs cursor-pointer"
@@ -512,13 +511,24 @@ export const SalesOrdersModule: React.FC = () => {
             <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>{saleSuccessBanner}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setSaleSuccessBanner(null)}
-            className="text-emerald-600 hover:text-emerald-800 text-xs font-bold p-1"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {onNavigateToRegistry && (
+              <button
+                type="button"
+                onClick={onNavigateToRegistry}
+                className="underline text-emerald-700 dark:text-emerald-300 font-bold hover:text-emerald-900 cursor-pointer"
+              >
+                View in Orders Registry →
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSaleSuccessBanner(null)}
+              className="text-emerald-600 hover:text-emerald-800 text-xs font-bold p-1 ml-2"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -943,200 +953,37 @@ export const SalesOrdersModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Orders Table */}
-      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="font-bold text-sm text-slate-900 dark:text-white">Sales Orders Master Registry</h2>
-            <span className="text-[11px] bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-semibold px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-900/60">
-              15 Rows / Page
-            </span>
-            
+      {/* Separated Master Registry Link Card */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800/80 dark:to-slate-800/40 border border-blue-200/80 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-start gap-3">
+          <div className="p-3 bg-blue-600 text-white rounded-xl shadow-md shadow-blue-600/20 shrink-0">
+            <ClipboardList className="w-5 h-5" />
           </div>
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-            Page {currentPage} of {totalPages} • {salesOrders.length} Orders in Record
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="p-3">Order No & Date</th>
-                <th className="p-3">Customer / Distributor</th>
-                <th className="p-3">Warehouse Hub</th>
-                <th className="p-3">Ordered Batteries</th>
-                <th className="p-3 text-right">Net Amount BDT</th>
-                <th className="p-3 text-right">Due Amount</th>
-                <th className="p-3">Status</th>
-                <th className="p-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {paginatedSalesOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400 dark:text-slate-500">
-                    No sales orders recorded yet.
-                  </td>
-                </tr>
-              ) : (
-                paginatedSalesOrders.map((so) => (
-                  <tr key={so.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                    <td className="p-3">
-                      <div className="font-mono font-bold text-blue-600 dark:text-blue-400">{so.orderNumber}</div>
-                      <div className="text-[10px] text-slate-400">{so.date}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-semibold text-slate-900 dark:text-white">{so.customerName}</div>
-                      <div className="text-[10px] text-slate-400">{so.channel}</div>
-                    </td>
-                    <td className="p-3 text-slate-700 dark:text-slate-300">{so.warehouseName}</td>
-                    <td className="p-3">
-                      {so.items.map((i, idx) => (
-                        <div key={idx} className="truncate max-w-xs">
-                          {i.quantity}x {i.productName}
-                        </div>
-                      ))}
-                    </td>
-                    <td className="p-3 font-mono text-right font-black text-slate-900 dark:text-white">
-                      ৳ {so.netAmountBDT.toLocaleString()}
-                    </td>
-                    <td className="p-3 font-mono text-right font-bold text-amber-600 dark:text-amber-400">
-                      ৳ {so.dueAmountBDT.toLocaleString()}
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          so.status === 'Invoiced'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                            : so.status === 'Approved' || so.status === 'Dispatched'
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}
-                      >
-                        {so.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => setSelectedOrderForInvoice(so)}
-                          className="p-1 rounded text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-                          title="View Official Tax Invoice"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-
-                        {so.status === 'Submitted' && (
-                          <button
-                            onClick={() => approveSalesOrder(so.id)}
-                            className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[10px] cursor-pointer"
-                          >
-                            Approve
-                          </button>
-                        )}
-
-                        {(so.status === 'Approved' || so.status === 'Dispatched') && (
-                          <button
-                            onClick={() => dispatchAndInvoiceSalesOrder(so.id)}
-                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] cursor-pointer"
-                            title="Dispatch & Post Invoice: Atomically deducts warehouse inventory and updates customer receivable ledger"
-                          >
-                            Dispatch & Invoice
-                          </button>
-                        )}
-
-                        {so.dueAmountBDT > 0 && so.status === 'Invoiced' && (
-                          <button
-                            onClick={() => handleOpenPayment(so)}
-                            className="px-2 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[10px] cursor-pointer"
-                          >
-                            Record Payment
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Bar */}
-        <div className="p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
           <div>
-            Showing{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {salesOrders.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
-            </span>{' '}
-            to{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {Math.min(currentPage * pageSize, salesOrders.length)}
-            </span>{' '}
-            of{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {salesOrders.length}
-            </span>{' '}
-            orders
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 transition-colors font-medium cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Prev</span>
-            </button>
-
-            {Array.from({ length: totalPages }).map((_, idx) => {
-              const pageNum = idx + 1;
-              if (
-                totalPages > 7 &&
-                pageNum !== 1 &&
-                pageNum !== totalPages &&
-                Math.abs(pageNum - currentPage) > 2
-              ) {
-                if (pageNum === 2 || pageNum === totalPages - 1) {
-                  return (
-                    <span key={pageNum} className="px-1 text-slate-400">
-                      ...
-                    </span>
-                  );
-                }
-                return null;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  type="button"
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs transition-colors cursor-pointer ${
-                    currentPage === pageNum
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 transition-colors font-medium cursor-pointer"
-            >
-              <span>Next</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                Sales Orders Master Registry
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                Separate Page
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              Filter order data by Order No, Date range, Status, Customer Name, and Product in the dedicated Master Registry page.
+            </p>
           </div>
         </div>
+
+        {onNavigateToRegistry && (
+          <button
+            type="button"
+            onClick={onNavigateToRegistry}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all shrink-0 cursor-pointer"
+          >
+            <span>Open Orders Registry ({salesOrders.length})</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Modal: Official Tax Invoice Presentation */}

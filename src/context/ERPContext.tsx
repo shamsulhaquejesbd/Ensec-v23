@@ -323,7 +323,7 @@ interface ERPContextType {
   clearSalesOrders: () => void;
   refreshSalesOrders?: () => Promise<void>;
   createSalesOrder: (order: Omit<SalesOrder, 'id' | 'orderNumber' | 'status'>) => string;
-  approveSalesOrder: (orderId: string) => void;
+  approveSalesOrder: (orderId: string, updatedOrderData?: Partial<SalesOrder>) => void;
   dispatchAndInvoiceSalesOrder: (orderId: string) => void;
   recordOrderPayment: (orderId: string, paidAmount: number, accountType: CashBookEntry['accountType'], reference: string) => void;
 
@@ -5704,21 +5704,59 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return id;
   };
 
-  const approveSalesOrder = (orderId: string) => {
+  const approveSalesOrder = (orderId: string, updatedOrderData?: Partial<SalesOrder>) => {
     const targetSo = salesOrders.find((so) => so.id === orderId || so.orderNumber === orderId);
     setSalesOrders((prev) =>
-      prev.map((so) => (so.id === orderId || so.orderNumber === orderId ? { ...so, status: 'Approved' } : so))
+      prev.map((so) => {
+        if (so.id === orderId || so.orderNumber === orderId) {
+          return {
+            ...so,
+            ...(updatedOrderData || {}),
+            status: 'Approved',
+          };
+        }
+        return so;
+      })
     );
-    addAuditLog('ORDER_APPROVED', 'Sales Orders', `Order ${orderId} approved by management.`);
+
+    const logDesc = updatedOrderData?.items
+      ? `Order ${targetSo?.orderNumber || orderId} reviewed and approved by Accounts with rate adjustments. Revised Net: BDT ${(updatedOrderData.netAmountBDT ?? targetSo?.netAmountBDT)?.toLocaleString()}`
+      : `Order ${targetSo?.orderNumber || orderId} approved by Accounts & Management.`;
+    addAuditLog('ORDER_APPROVED', 'Accounts & Commercial', logDesc);
 
     const sb = getSupabase();
     if (sb) {
       const isNumeric = /^\d+$/.test(orderId);
+      const updatePayload: any = {
+        status: 'Approved',
+      };
+      if (updatedOrderData?.items) {
+        updatePayload.items_json = updatedOrderData.items;
+      }
+      if (updatedOrderData?.subTotalBDT !== undefined) {
+        updatePayload.gross_amount_bdt = updatedOrderData.subTotalBDT;
+      }
+      if (updatedOrderData?.discountBDT !== undefined) {
+        updatePayload.discount_amount_bdt = updatedOrderData.discountBDT;
+      }
+      if (updatedOrderData?.taxVatBDT !== undefined) {
+        updatePayload.tax_vat_bdt = updatedOrderData.taxVatBDT;
+      }
+      if (updatedOrderData?.netAmountBDT !== undefined) {
+        updatePayload.net_amount_bdt = updatedOrderData.netAmountBDT;
+      }
+      if (updatedOrderData?.dueAmountBDT !== undefined) {
+        updatePayload.due_amount_bdt = updatedOrderData.dueAmountBDT;
+      }
+      if (updatedOrderData?.notes !== undefined) {
+        updatePayload.notes = updatedOrderData.notes;
+      }
+
       const query = isNumeric
-        ? sb.from('sales_orders').update({ status: 'Approved' }).eq('id', Number(orderId))
-        : sb.from('sales_orders').update({ status: 'Approved' }).eq('order_number', targetSo?.orderNumber || orderId);
-      query.then(({ error }) => {
-        if (error) console.error('Failed to update sales order status in Supabase:', error);
+        ? sb.from('sales_orders').update(updatePayload).eq('id', Number(orderId))
+        : sb.from('sales_orders').update(updatePayload).eq('order_number', targetSo?.orderNumber || orderId);
+      query.then(({ error }: any) => {
+        if (error) console.error('Failed to update sales order approval in Supabase:', error);
       });
     }
   };

@@ -12,6 +12,7 @@ import { CRMAgreementsPage } from './components/crm/CRMAgreementsPage.tsx';
 import { FieldForceTrackerModule } from './components/fieldforce/FieldForceTrackerModule.tsx';
 import { MobileSalesPortal } from './components/fieldforce/MobileSalesPortal.tsx';
 import { SalesOrdersModule } from './components/sales/SalesOrdersModule.tsx';
+import { SalesOrdersRegistryModule } from './components/sales/SalesOrdersRegistryModule.tsx';
 import { RequisitionModule } from './components/requisition/RequisitionModule.tsx';
 import { PaymentModule } from './components/payment/PaymentModule.tsx';
 import { TADAModule } from './components/tada/TADAModule.tsx';
@@ -202,7 +203,12 @@ function MainApp() {
               )}
               {activeModule === 'field-tracker' && <FieldForceTrackerModule />}
               {activeModule === 'mobile-field' && <MobileSalesPortal />}
-              {activeModule === 'sales-orders' && <SalesOrdersModule />}
+              {activeModule === 'sales-orders' && (
+                <SalesOrdersModule onNavigateToRegistry={() => setActiveModule('sales-orders-registry')} />
+              )}
+              {activeModule === 'sales-orders-registry' && (
+                <SalesOrdersRegistryModule onNavigateToCreateOrder={() => setActiveModule('sales-orders')} />
+              )}
               {activeModule === 'requisition' && <RequisitionModule initialTab="list" />}
               {activeModule === 'requisition-create' && <RequisitionModule initialTab="create" />}
               {activeModule === 'requisition-list' && <RequisitionModule initialTab="list" />}

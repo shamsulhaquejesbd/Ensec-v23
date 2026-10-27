@@ -104,6 +104,7 @@ export const UserManagementModule: React.FC = () => {
     'mobile-field',
     'customers-crm',
     'sales-orders',
+    'sales-orders-registry',
     'offers',
   ]);
   const [selectedFeatures, setSelectedFeatures] = useState<FeaturePermissions>(

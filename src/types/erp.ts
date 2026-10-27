@@ -24,6 +24,7 @@ export type PageModuleId =
   | 'field-tracker'
   | 'mobile-field'
   | 'sales-orders'
+  | 'sales-orders-registry'
   | 'crm-agreements'
   | 'customers-crm'
   | 'offers'
@@ -113,7 +114,13 @@ export const ALL_PAGE_MODULES: PageModuleDef[] = [
     id: 'sales-orders',
     name: 'Sales Orders & Invoicing',
     category: 'Commercial',
-    description: 'Primary and secondary sales orders, VAT challans, and trade promotions',
+    description: 'Direct sales order booking, POS checkout, and quick invoice generation',
+  },
+  {
+    id: 'sales-orders-registry',
+    name: 'Sales Orders Registry',
+    category: 'Commercial',
+    description: 'Master registry of sales orders, filter by order number, date, status, customer, and product',
   },
   {
     id: 'crm-agreements',
@@ -1358,6 +1365,7 @@ export function getDefaultPermissionsForRole(role: Role): UserPermissions {
         'field-tracker',
         'mobile-field',
         'sales-orders',
+        'sales-orders-registry',
         'crm-agreements',
         'tada',
         'warranty',
@@ -1407,6 +1415,7 @@ export function getDefaultPermissionsForRole(role: Role): UserPermissions {
         'field-tracker',
         'mobile-field',
         'sales-orders',
+        'sales-orders-registry',
         'crm-agreements',
         'tada',
         'reports',
@@ -1442,6 +1451,7 @@ export function getDefaultPermissionsForRole(role: Role): UserPermissions {
         'dashboard',
         'mobile-field',
         'sales-orders',
+        'sales-orders-registry',
         'crm-agreements',
         'tada',
         'payment',
@@ -1479,6 +1489,7 @@ export function getDefaultPermissionsForRole(role: Role): UserPermissions {
         'warehouse',
         'requisition',
         'sales-orders',
+        'sales-orders-registry',
         'reports',
       ],
       features: {
@@ -1548,6 +1559,7 @@ export function getDefaultPermissionsForRole(role: Role): UserPermissions {
       'payment',
       'requisition',
       'sales-orders',
+        'sales-orders-registry',
       'finance-cashbook',
       'payroll',
       'tada',
