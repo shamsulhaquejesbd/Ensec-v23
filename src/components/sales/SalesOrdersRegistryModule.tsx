@@ -27,6 +27,7 @@ import {
   Sparkles,
   Percent,
   ShieldCheck,
+  Truck,
   Edit3,
   TrendingUp,
   TrendingDown,
@@ -34,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useERP } from '../../context/ERPContext.tsx';
 import { SalesOrder, SalesOrderItem, CashBookEntry } from '../../types/erp.ts';
+import { DeliveryOrderModal } from './DeliveryOrderModal.tsx';
 
 interface SalesOrdersRegistryModuleProps {
   onNavigateToCreateOrder?: () => void;
@@ -74,6 +76,7 @@ export const SalesOrdersRegistryModule: React.FC<SalesOrdersRegistryModuleProps>
 
   // Modals
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<SalesOrder | null>(null);
+  const [selectedOrderForDO, setSelectedOrderForDO] = useState<SalesOrder | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState<SalesOrder | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payAccount, setPayAccount] = useState<CashBookEntry['accountType']>('City Bank PLC');
@@ -385,11 +388,18 @@ export const SalesOrdersRegistryModule: React.FC<SalesOrdersRegistryModuleProps>
         : reviewOrder.notes,
     };
 
-    approveSalesOrder(reviewOrder.id, updatedData);
+    const doNum = reviewOrder.doNumber || `012/2026-${(reviewOrder.orderNumber || reviewOrder.id).replace(/\D/g, "").slice(-2).padStart(2, "0") || "88"}`;
+    const enrichedData = { ...updatedData, doNumber: doNum };
+    approveSalesOrder(reviewOrder.id, enrichedData);
     setNotificationBanner(
-      `Order ${reviewOrder.orderNumber} successfully reviewed and approved by Accounts. Revised Net: BDT ${reviewNetAmount.toLocaleString()}`
+      `Order ${reviewOrder.orderNumber} successfully approved by Accounts! Official Factory Delivery Order (D.O. #${doNum}) generated.`
     );
     setTimeout(() => setNotificationBanner(null), 5000);
+    setSelectedOrderForDO({
+      ...reviewOrder,
+      ...enrichedData,
+      status: 'Approved',
+    } as SalesOrder);
     setReviewOrder(null);
   };
 
@@ -1028,6 +1038,18 @@ export const SalesOrdersRegistryModule: React.FC<SalesOrdersRegistryModuleProps>
                             </button>
                           )}
 
+                          {(so.status === 'Approved' || so.status === 'Dispatched' || so.status === 'Invoiced') && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderForDO(so)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 dark:text-emerald-300 font-bold text-[11px] cursor-pointer transition-colors border border-emerald-200 dark:border-emerald-800 shadow-xs"
+                              title="View official Factory Delivery Order (D.O.) copy"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>D.O. Copy</span>
+                            </button>
+                          )}
+
                           {(so.status === 'Approved' || so.status === 'Dispatched') && (
                             <button
                               type="button"
@@ -1647,6 +1669,13 @@ export const SalesOrdersRegistryModule: React.FC<SalesOrdersRegistryModuleProps>
       {/* ===================================================================== */}
       {/* MODAL: RECORD PAYMENT                                                 */}
       {/* ===================================================================== */}
+      {selectedOrderForDO && (
+        <DeliveryOrderModal
+          order={selectedOrderForDO}
+          onClose={() => setSelectedOrderForDO(null)}
+        />
+      )}
+
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 space-y-4 text-xs">

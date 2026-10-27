@@ -11,7 +11,13 @@ import {
   Building,
   ArrowRight,
   ShieldAlert,
+  Truck,
+  FileText,
+  Printer,
+  Eye,
 } from 'lucide-react';
+import { DeliveryOrderModal } from '../sales/DeliveryOrderModal.tsx';
+import { SalesOrder } from '../../types/erp.ts';
 import { useERP } from '../../context/ERPContext.tsx';
 import { Product, ProductionOrder, BOMItem } from '../../types/erp.ts';
 
@@ -23,9 +29,15 @@ export const ManufacturingModule: React.FC = () => {
     createProductionOrder,
     completeProductionOrder,
     updateProductBOM,
+    salesOrders,
   } = useERP();
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'bom'>('orders');
+  const [selectedDOForFactory, setSelectedDOForFactory] = useState<SalesOrder | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'orders' | 'bom' | 'delivery-orders'>('orders');
+  const approvedDOOrders = (salesOrders || []).filter(
+    (so) => so.status === 'Approved' || so.status === 'Dispatched' || so.status === 'Invoiced'
+  );
   const [showNewBatchModal, setShowNewBatchModal] = useState(false);
   const [editingBOMProduct, setEditingBOMProduct] = useState<Product | null>(null);
 
@@ -124,6 +136,17 @@ export const ManufacturingModule: React.FC = () => {
               Production Orders & Batches
             </button>
             <button
+              onClick={() => setActiveTab('delivery-orders')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                activeTab === 'delivery-orders'
+                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Factory Delivery Orders (D.O.) ({approvedDOOrders.length})</span>
+            </button>
+            <button
               onClick={() => setActiveTab('bom')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
                 activeTab === 'bom'
@@ -145,7 +168,132 @@ export const ManufacturingModule: React.FC = () => {
         </div>
       </div>
 
-      {activeTab === 'orders' ? (
+      {activeTab === 'delivery-orders' ? (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                <Truck className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="font-black text-base text-slate-900 dark:text-white">
+                  Factory Delivery Orders (D.O.) Handover Queue
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Authorized Delivery Orders sent from Accounts for battery preparation, serial number stamping, and factory dispatch.
+                </p>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-slate-500">
+              Total Approved D.O.: <span className="text-emerald-600 font-bold text-sm">{approvedDOOrders.length}</span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                Delivery Orders (D.O.) from Accounts
+              </h3>
+              <span className="text-[11px] bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                Place of Delivery: Factory
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3.5">D/O No. & Date</th>
+                    <th className="p-3.5">Buyer / Customer Details</th>
+                    <th className="p-3.5">Ordered Battery Models</th>
+                    <th className="p-3.5 text-center">Total Qty</th>
+                    <th className="p-3.5 text-center">Accounts Status</th>
+                    <th className="p-3.5 text-right">Factory Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                  {approvedDOOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-12 text-center text-slate-400">
+                        <Truck className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
+                        <p className="font-semibold text-sm">No approved Delivery Orders in queue.</p>
+                        <p className="text-xs mt-1 text-slate-400">
+                          When Accounts approves a sales order, the official D.O. will appear here for the factory.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    approvedDOOrders.map((so) => {
+                      const doNum = so.doNumber || `012/2026-${(so.orderNumber || so.id).replace(/\D/g, "").slice(-2).padStart(2, "0") || "88"}`;
+                      const totalUnits = (so.items || []).reduce((sum, item) => sum + item.quantity, 0);
+
+                      return (
+                        <tr key={so.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="p-3.5">
+                            <div className="font-mono font-bold text-blue-600 dark:text-blue-400 text-[13px]">
+                              {doNum}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              PO Ref: {so.orderNumber} • Date: {so.date}
+                            </div>
+                          </td>
+
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900 dark:text-white">
+                              {so.customerName}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {so.channel || "Direct Customer"}
+                            </div>
+                          </td>
+
+                          <td className="p-3.5">
+                            <div className="space-y-1 max-w-sm">
+                              {so.items.map((it, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-2 text-[11px] bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                                    {it.productName}
+                                  </span>
+                                  <span className="font-mono font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                                    {String(it.quantity).padStart(2, "0")} Pcs
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+
+                          <td className="p-3.5 text-center font-mono font-black text-slate-900 dark:text-white text-xs">
+                            {String(totalUnits).padStart(2, "0")} PCS
+                          </td>
+
+                          <td className="p-3.5 text-center">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              Approved & Verified
+                            </span>
+                          </td>
+
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDOForFactory(so)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm transition-all"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View Official D.O. Copy</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'orders' ? (
         <div className="space-y-6">
           {/* Plant KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -548,6 +696,12 @@ export const ManufacturingModule: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+    {selectedDOForFactory && (
+        <DeliveryOrderModal
+          order={selectedDOForFactory}
+          onClose={() => setSelectedDOForFactory(null)}
+        />
       )}
     </div>
   );

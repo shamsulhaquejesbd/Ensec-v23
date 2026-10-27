@@ -1043,6 +1043,9 @@ export interface SalesOrder {
   paymentMethod?: string;
   invoiceNumber?: string;
   invoiceNo?: string;
+  doNumber?: string;
+  poNumber?: string;
+  buyerBin?: string;
   appliedOfferCode?: string;
   offerSavingsBDT?: number;
   agingColor?: string;
