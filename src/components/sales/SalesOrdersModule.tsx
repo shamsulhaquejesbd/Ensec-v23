@@ -950,16 +950,7 @@ export const SalesOrdersModule: React.FC = () => {
             <span className="text-[11px] bg-blue-50 dark:bg-blue-950/80 text-blue-600 dark:text-blue-400 font-semibold px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-900/60">
               15 Rows / Page
             </span>
-            {salesOrders.length > 0 && (
-              <button
-                onClick={handleCleanSampleData}
-                className="text-[11px] text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 font-semibold ml-2 cursor-pointer"
-                title="Clean all sales orders from session memory"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Clean All</span>
-              </button>
-            )}
+            
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
             Page {currentPage} of {totalPages} • {salesOrders.length} Orders in Record
